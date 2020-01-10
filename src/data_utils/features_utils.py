@@ -80,3 +80,12 @@ def batch_autocorr(data, lag, threshold=1, backoffset=0):
         else:
             corr[i] = np.NaN
     return corr
+
+
+def get_map(df, col):
+    uniques = df[col].unique()
+    mapping_dict = {}
+    for i in range(len(uniques)):
+        mapping_dict[uniques[i]] = i
+    df[col] = df[col].map(mapping_dict)
+    return df, len(uniques)

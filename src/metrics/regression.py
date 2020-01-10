@@ -66,13 +66,22 @@ def calculate_smape(y_true, predictions):
     return 100 / y_true.shape[0] * np.sum(2 * np.abs(predictions - y_true) / (np.abs(y_true) + np.abs(predictions)))
 
 
-def report(name=None):
+
+def report(y_true, y_hat, name=None):
+    rmse = calculate_rmse(y_true - y_hat)
+    pond_reliability = calculate_pondered_fiability(y_true, y_hat)
+    smape = calculate_smape(y_true, y_hat)
+    max_true, max_prev, mu, sigma, mu_hat, sigma_hat = calculate_stats(y_true, y_hat)
+    outlier_sens=calculate_outlier_sensitivity(y_true)
+    mae=calculate_percent_mae(y_true, (y_true-y_hat))
     if name is not None:
         print_string = '{} results'.format(name)
         print(print_string)
         print('~' * len(print_string))
-    print('True max : {:2.2f} | Pred max {:2.2f}'.format(max_true, max_prev))
-    print('True mean : {:2.2f} | Pred mean : {:2.2f}'.format(mu, pred_mu))
-    print('True std : {:2.3f} | Pred std : {:2.3f}'.format(sigma, pred_sigma))
-    print('RMSE: {:2.3f}\nMAE: {:2.3f}\nSMAPE: {:2.3f}\nOUTLIER_SENSIVITY : {:2.3f}\nPONDERED RELIABILITY : {:2.3f}' \
-          .format(rmse, mae, smape, outlier_sens, pond_reliability))
+    print(f'True max : {max_true} | Pred max {max_prev}')
+    print('~' * len(print_string))
+    print(f'True mean : {mu} | Pred mean : {mu_hat}')
+    print('~' * len(print_string))
+    print(f'True std : {sigma} | Pred std : {sigma_hat}')
+    print('~' * len(print_string))
+    print(f' RMSE: {rmse}\n \n MAE: {mae}\n\n SMAPE: {smape}\n\n OUTLIER_SENSIVITY : {outlier_sens}\n\n PONDERED RELIABILITY : {pond_reliability}')

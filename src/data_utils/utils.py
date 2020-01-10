@@ -112,3 +112,16 @@ def create_rolling_features_label(series, window_size, pred_offset, pred_n=1):
         day_rel_label = pred_offset + window_size - day - 1
         df.insert(0, '-{}_steps'.format(day_rel_label), historical_windows[:, day])
     return df
+
+
+def sigma_filter(df, tolerance=3):
+    ''' sigma clipping '''
+    df['meter_reading_ln'] = np.log1p(df.meter_reading)
+    stats = df.reset_index().set_index('timestamp').groupby(['building_id', 'meter']) \
+        .rolling(24 * 7, min_periods=2, center=True).meter_reading_ln.agg(['median'])
+    std = df.reset_index().set_index('timestamp').groupby(['building_id', 'meter']).meter_reading_ln.std()
+    stats['max'] = np.expm1(stats['median'] + tolerance * std)
+    stats['min'] = np.expm1(stats['median'] - tolerance * std)
+    stats['median'] = np.expm1(stats['median'])
+    df = df.merge(stats[['median', 'min', 'max']], left_on=['building_id', 'meter', 'timestamp'], right_index=True)
+    return df[(df.meter_reading <= df['max']) & git(df.meter_reading >= df['min'])]

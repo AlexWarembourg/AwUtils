@@ -40,6 +40,26 @@ def wavenet_struct(latent_dim, x_in):
     return conv_out
 
 
+def smape_loss(true, predicted):
+    epsilon = 0.1
+    true_o = tf.math.expm1(true)
+    pred_o = tf.math.expm1(predicted)
+    summ = tf.maximum(tf.abs(true_o) + tf.abs(pred_o) + epsilon, 0.5 + epsilon)
+    smape = tf.abs(pred_o - true_o) / summ * 2.0
+    return tf.reduce_mean(smape)
+
+
+def time_distributed_dense_layer(x, neurons=128, activation=None, batch_norm=None, reuse=False, dropout=0.2):
+    time_layer = tf.keras.layers.TimeDistributed(
+        tf.keras.layers.Dense(neurons, kernel_initializer="random_normal", bias_initializer="random_normal")
+    )(x)
+    if batch_norm is not None:
+        z = tf.layers.batch_normalization(time_layer, training=batch_norm, reuse=reuse)
+    z = activation(time_layer) if activation else z
+    z = tf.nn.dropout(z, dropout) if dropout is not None else z
+    return z
+
+
 def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=False):
     # Model Input
     seq_in = Input(shape=(timesteps, 1), dtype='float32', name="demand_seq_in")
@@ -49,7 +69,7 @@ def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=
     dom_in = Input(shape=(timesteps + range_ahead,), dtype='uint8', name="dayofmonth")
     month_in = Input(shape=(timesteps + range_ahead,), dtype='uint8', name="month")
     holiday_in = Input(shape=(timesteps + range_ahead, 1), dtype='float32', name="Holiday")
-    exposition_in = Input(shape=(timesteps + range_ahead, 1), dtype='float32', name="Exposition")
+    # exposition_in = Input(shape=(timesteps + range_ahead, 1), dtype='float32', name="Exposition")
 
     # embedding on temporal informations
     weekday_embed_encode = Embedding(7 + 1, math.ceil(8 / 2),
@@ -68,9 +88,10 @@ def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=
                                    name="month_embedding")(month_in)
 
     # aux input
-    cat_features = Input(shape=(timesteps + range_ahead, 8), name="categorical_features", dtype="int64")
+    cat_features = Input(shape=(timesteps + range_ahead, 2), name="categorical_features", dtype="int64")
     sku = Lambda(lambda x: x[:, :, 0])(cat_features)
     store = Lambda(lambda x: x[:, :, 1])(cat_features)
+    '''
     flg_loy = Lambda(lambda x: x[:, :, 2])(cat_features)
     lvl1_nomenc = Lambda(lambda x: x[:, :, 3])(cat_features)
     lvl2_nomenc = Lambda(lambda x: x[:, :, 4])(cat_features)
@@ -98,14 +119,14 @@ def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=
     lv4_embed = Embedding(lv4_cnt + 1, math.ceil(lv4_cnt / 2) if lv4_cnt < max_embed_length else max_embed_length,
                           input_length=timesteps + range_ahead,
                           embeddings_initializer='he_uniform')(lvl4_nomenc)
-
+    '''
     if one_hot:
         sku_ohe = Lambda(tf.keras.backend.one_hot, arguments={'num_classes': 33730},
                          output_shape=(timesteps + range_ahead, 33730))(sku)
         cat_ohe = Lambda(tf.keras.backend.one_hot, arguments={'num_classes': 27},
                          output_shape=(timesteps + range_ahead, 27))(store)
     else:
-        sku_embed = Embedding(33730 + 1, max_embed_length,
+        sku_embed = Embedding(39805 + 1, max_embed_length,
                               input_length=timesteps + range_ahead,
                               embeddings_initializer='he_uniform')(sku)
         store_embed = Embedding(27 + 1, math.ceil(27 / 2),
@@ -116,15 +137,15 @@ def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=
 
     encode_features = concatenate([sku_embed,
                                    store_embed,
-                                   loyalty_ohe,
-                                   format_ohe,
+                                   # loyalty_ohe,
+                                   # format_ohe,
                                    promo_in,
-                                   exposition_in,
+                                   # exposition_in,
                                    holiday_in,
-                                   lv1_embed,
-                                   lv2_embed,
-                                   lv3_embed,
-                                   lv4_embed,
+                                   # lv1_embed,
+                                   # lv2_embed,
+                                   # lv3_embed,
+                                   # lv4_embed,
                                    weekday_embed_encode,
                                    dom_embed_encode,
                                    month_embed_encode
@@ -163,15 +184,15 @@ def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=
     # Decoder
     decode_features = concatenate([sku_embed,
                                    store_embed,
-                                   loyalty_ohe,
-                                   format_ohe,
+                                   # loyalty_ohe,
+                                   # format_ohe,
                                    promo_in,
-                                   exposition_in,
+                                   # exposition_in,
                                    holiday_in,
-                                   lv1_embed,
-                                   lv2_embed,
-                                   lv3_embed,
-                                   lv4_embed,
+                                   # lv1_embed,
+                                   # lv2_embed,
+                                   # lv3_embed,
+                                   # lv4_embed,
                                    weekday_embed_encode,
                                    dom_embed_encode,
                                    month_embed_encode
@@ -198,6 +219,7 @@ def encoder_decoder_model(latent_dim=100, timesteps=90, range_ahead=42, stacked=
         previous_x = output_x
 
     # /!\  be careful to order in format cnn return
-    model = Model([seq_in, lagged_seq, holiday_in, exposition_in,
-                   promo_in, weekday_in, dom_in, month_in, cat_features], decoder_outputs)
+    model = Model([seq_in, lagged_seq, holiday_in,  # exposition_in,
+                   promo_in, weekday_in, dom_in,
+                   month_in, cat_features], decoder_outputs)
     return model
