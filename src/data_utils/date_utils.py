@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from src.data_utils.holidays import UACalendar
 
 
 def expend_event(df, event_name, direction=None, n_ahead=None, n_previous=None):
@@ -63,9 +64,9 @@ def add_date_features(df, dates, weeks, inplace=False):
     if not inplace:
         df = df.copy().sort_values(dates.name)
     df["dow"] = dates.dt.dayofweek
-    df["is_wknd"] = np.where(df["doy"].isin([5, 6]), 1, 0)
-    df['dom'] = pd.DatetimeIndex(dates).map(_get_day_of_month)
+    df['dom'] = dates.dt.day
     df['doy'] = dates.dt.dayofyear
+    df["is_wknd"] = np.where(dates.dt.dayofyear.isin([5, 6]), 1, 0)
     df['month'] = dates.dt.month
     df["month_split"] = dates.dt.day % 6  # reset cum_count every 6 day
     df["week"] = dates.dt.week

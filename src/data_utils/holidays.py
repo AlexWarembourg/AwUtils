@@ -1,7 +1,7 @@
 import calendar
 
 import pandas as pd
-from date_utils import *
+from src.data_utils.date_utils import *
 from pandas.tseries.holiday import *
 from pandas.tseries.offsets import CustomBusinessDay
 
@@ -81,4 +81,4 @@ if __name__ == "__main__":
                                                           n_ahead=3,
                                                           n_previous=6)
 
-    improved_calendar.to_csv("seq2seq_model/data/calendar.csv", index=False)
+    improved_calendar.to_csv("/home/alex/TopDownForecast/data/calendar.csv", index=False)
