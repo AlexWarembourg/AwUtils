@@ -1,3 +1,6 @@
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+
 def get_features_pipeline(training_features, categorical_col):
     """
     Preprocessing pipeline before GBDT
@@ -120,3 +123,41 @@ def get_promotional_autocorr(df_train):
                      )
 
     return operations_df
+
+
+
+
+def get_confidence_interval(pred_train, pred_test, tolerance=1.96):
+    """
+    :param pred_train:
+    :param pred_test:
+    :param tolerance:
+    :return:
+    """
+    historical_stdev = (pred_train
+                        .withColumn('prediction_gbt',
+                                    when(col('prediction_gbt') < 0, 0).otherwise(col('prediction_gbt')))
+                        .groupBy(["prd_sku_unique_code", "site_unique_code"])
+                        .agg(sum(col("nb_prod")).alias("true"),
+                             sum(col("prediction_gbt")).alias('pred'),
+                             count('*').alias('size'))
+                        .withColumn('sum_errs', pow(
+        (sum(col('true') - col('pred'))).over(Window.partitionBy(col("prd_sku_unique_code"), col("site_unique_code"))),
+        lit(2)))
+                        .withColumn('stddev', sqrt(lit(1) / (col('size') - lit(2)) * col('sum_errs')))
+                        .withColumn('interval', lit(tolerance) * col('stddev'))
+
+                        )
+
+    pred_test = (pred_test
+                 .withColumn('prediction_gbt',
+                             when(col('prediction_gbt') < 0, 0).otherwise(col('prediction_gbt')))
+                 .join(historical_stdev, on=["prd_sku_unique_code", "site_unique_code"], how="left")
+                 .withColumn("lower", col("prediction_gbt") - col("interval"))
+                 .withColumn("lower", when(col("lower") < 0, lit(0)).otherwise(col("lower")))
+                 .withColumn("upper", col("prediction_gbt") + col("interval"))
+                 .withColumn("std_low", col("prediction_gbt") - (col("interval") / lit(tolerance)))
+                 .withColumn("std_low", when(col("std_low") < 0, lit(0)).otherwise(col("std_low")))
+                 .withColumn("std_upper", col("prediction_gbt") + (col("interval") / lit(tolerance)))
+                 )
+    return pred_test
